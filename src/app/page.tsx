@@ -97,7 +97,7 @@ export default function Home() {
             const code = atob(codeBase64)
             const data = JSON.parse(code)
             setEstimateName(data.estimateName)
-            setIsCeilNumbers(data.ceilNumbers)
+            setIsCeilNumbers(data.isCeilNumbers)
             setTasks(data.tasks)
         }
     }
@@ -110,11 +110,11 @@ export default function Home() {
     const sharelink = useMemo(() => {
         const data = JSON.stringify({
             estimateName,
-            ceilNumbers: isCeilNumbers,
+            isCeilNumbers,
             tasks,
         })
         if (typeof window !== "undefined") {
-            return `${window?.location?.href}?code=${btoa(data)}`
+            return `${window?.location?.origin}/?code=${btoa(data)}`
         }
         return ""
     }, [estimateName, isCeilNumbers, tasks])
@@ -175,7 +175,7 @@ export default function Home() {
         }
     }
 
-    const columnsTable: ColumnDef<z.infer<typeof TaskWithThreePointSchema>[]> = [
+    const columnsTable: ColumnDef<any>[] = [
         {
             accessorKey: "description",
             header: "Atividade",

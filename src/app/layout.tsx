@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { Suspense } from 'react'
 import { Inter as FontSans } from "next/font/google";
 import "./globals.css";
 import { cn } from "@/lib/utils"
@@ -20,7 +21,7 @@ export default function RootLayout({
             <body className={cn(
                 "min-h-screen bg-background font-sans antialiased",
                 fontSans.variable
-            )}>{children}</body>
+            )}><Suspense>{children}</Suspense></body>
         </html>
     );
 }
