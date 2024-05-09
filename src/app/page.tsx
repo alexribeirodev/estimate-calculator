@@ -1,113 +1,365 @@
-import Image from "next/image";
+"use client"
+
+import { zodResolver } from "@hookform/resolvers/zod"
+import { Control, FieldValues, SubmitHandler, useForm } from "react-hook-form"
+import { z } from "zod"
+import { v4 as uuid } from "uuid"
+import {
+    ColumnDef
+} from "@tanstack/react-table"
+import { Copy, MoreHorizontal, Share2 } from "lucide-react"
+
+import { useEffect, useMemo, useState } from "react"
+import { usePathname, useSearchParams } from 'next/navigation'
+
+import { Button } from "@/components/ui/button"
+import { Input } from "@/components/ui/input"
+import { Label } from "@/components/ui/label"
+import {
+    Form,
+    FormControl,
+    FormField,
+    FormItem,
+    FormLabel,
+    FormMessage,
+} from "@/components/ui/form"
+import {
+    Table,
+    TableBody,
+    TableCell,
+    TableHead,
+    TableHeader,
+    TableRow,
+} from "@/components/ui/table"
+import { DataTable } from "@/components/data-table"
+import {
+    DropdownMenu,
+    DropdownMenuContent,
+    DropdownMenuItem,
+    DropdownMenuLabel,
+    DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu"
+import { Checkbox } from "@/components/ui/checkbox"
+import {
+    Dialog,
+    DialogClose,
+    DialogContent,
+    DialogDescription,
+    DialogFooter,
+    DialogHeader,
+    DialogTitle,
+    DialogTrigger,
+} from "@/components/ui/dialog"
+
+const TaskFormSchema = z.object({
+    description: z.string().min(1, {
+        message: "Descricao é obrigatória ser preenchida.",
+    }),
+    estimatedA: z.number({
+        required_error: "Estimativa Pessimista é obrigatória ser preenchida.",
+        invalid_type_error: "Estimativa Pessimista deve ser um número.",
+    }).nonnegative().default(0),
+    estimatedB: z.number({
+        required_error: "Estimativa Mais Provável é obrigatória ser preenchida.",
+        invalid_type_error: "Estimativa Mais Provável deve ser um número.",
+    }).nonnegative().default(0),
+    estimatedC: z.number({
+        required_error: "Estimativa Otimista é obrigatória ser preenchida.",
+        invalid_type_error: "Estimativa Otimista deve ser um número.",
+    }).nonnegative().default(0),
+})
+    .refine(schema => {
+        return schema.estimatedA > schema.estimatedC
+    }, { message: "Estimativa Pessimista precisa ser maior que a estimativa Otimista.", path: ["estimatedA"] })
+
+const ThreePointEstimateSchema = z.object({
+    id: z.string().uuid(),
+    threePointEstimated: z.number({
+        required_error: "Estimativa de 3 Pontos é obrigatória ser preenchida.",
+        invalid_type_error: "Estimativa 3 Pontos deve ser um número.",
+    }).nonnegative().default(0),
+    standardDeviationEstimated: z.number({
+        required_error: "Estimativa de Desvio Padrão é obrigatória ser preenchida.",
+        invalid_type_error: "Estimativa Desvio Padrão deve ser um número.",
+    }).nonnegative().default(0),
+})
+
+const TaskWithThreePointSchema = TaskFormSchema.and(ThreePointEstimateSchema)
 
 export default function Home() {
-  return (
-    <main className="flex min-h-screen flex-col items-center justify-between p-24">
-      <div className="z-10 w-full max-w-5xl items-center justify-between font-mono text-sm lg:flex">
-        <p className="fixed left-0 top-0 flex w-full justify-center border-b border-gray-300 bg-gradient-to-b from-zinc-200 pb-6 pt-8 backdrop-blur-2xl dark:border-neutral-800 dark:bg-zinc-800/30 dark:from-inherit lg:static lg:w-auto  lg:rounded-xl lg:border lg:bg-gray-200 lg:p-4 lg:dark:bg-zinc-800/30">
-          Get started by editing&nbsp;
-          <code className="font-mono font-bold">src/app/page.tsx</code>
-        </p>
-        <div className="fixed bottom-0 left-0 flex h-48 w-full items-end justify-center bg-gradient-to-t from-white via-white dark:from-black dark:via-black lg:static lg:size-auto lg:bg-none">
-          <a
-            className="pointer-events-none flex place-items-center gap-2 p-8 lg:pointer-events-auto lg:p-0"
-            href="https://vercel.com?utm_source=create-next-app&utm_medium=appdir-template&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            By{" "}
-            <Image
-              src="/vercel.svg"
-              alt="Vercel Logo"
-              className="dark:invert"
-              width={100}
-              height={24}
-              priority
-            />
-          </a>
-        </div>
-      </div>
+    const searchParams = useSearchParams()
+    const [estimateName, setEstimateName] = useState<string>("Nova estimativa")
+    const [isCeilNumbers, setIsCeilNumbers] = useState<boolean>(true)
+    const [tasks, setTasks] = useState<z.infer<typeof TaskWithThreePointSchema>[]>([])
 
-      <div className="relative z-[-1] flex place-items-center before:absolute before:h-[300px] before:w-full before:-translate-x-1/2 before:rounded-full before:bg-gradient-radial before:from-white before:to-transparent before:blur-2xl before:content-[''] after:absolute after:-z-20 after:h-[180px] after:w-full after:translate-x-1/3 after:bg-gradient-conic after:from-sky-200 after:via-blue-200 after:blur-2xl after:content-[''] before:dark:bg-gradient-to-br before:dark:from-transparent before:dark:to-blue-700 before:dark:opacity-10 after:dark:from-sky-900 after:dark:via-[#0141ff] after:dark:opacity-40 sm:before:w-[480px] sm:after:w-[240px] before:lg:h-[360px]">
-        <Image
-          className="relative dark:drop-shadow-[0_0_0.3rem_#ffffff70] dark:invert"
-          src="/next.svg"
-          alt="Next.js Logo"
-          width={180}
-          height={37}
-          priority
-        />
-      </div>
+    const LoadShareData = (codeBase64: any) => {
+        if (codeBase64) {
+            const code = atob(codeBase64)
+            const data = JSON.parse(code)
+            setEstimateName(data.estimateName)
+            setIsCeilNumbers(data.ceilNumbers)
+            setTasks(data.tasks)
+        }
+    }
 
-      <div className="mb-32 grid text-center lg:mb-0 lg:w-full lg:max-w-5xl lg:grid-cols-4 lg:text-left">
-        <a
-          href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template&utm_campaign=create-next-app"
-          className="group rounded-lg border border-transparent px-5 py-4 transition-colors hover:border-gray-300 hover:bg-gray-100 hover:dark:border-neutral-700 hover:dark:bg-neutral-800/30"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <h2 className="mb-3 text-2xl font-semibold">
-            Docs{" "}
-            <span className="inline-block transition-transform group-hover:translate-x-1 motion-reduce:transform-none">
-              -&gt;
-            </span>
-          </h2>
-          <p className="m-0 max-w-[30ch] text-sm opacity-50">
-            Find in-depth information about Next.js features and API.
-          </p>
-        </a>
+    useEffect(() => {
+        const codeBase64 = searchParams.get("code")
+        LoadShareData(codeBase64)
+    }, [])
 
-        <a
-          href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          className="group rounded-lg border border-transparent px-5 py-4 transition-colors hover:border-gray-300 hover:bg-gray-100 hover:dark:border-neutral-700 hover:dark:bg-neutral-800/30"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <h2 className="mb-3 text-2xl font-semibold">
-            Learn{" "}
-            <span className="inline-block transition-transform group-hover:translate-x-1 motion-reduce:transform-none">
-              -&gt;
-            </span>
-          </h2>
-          <p className="m-0 max-w-[30ch] text-sm opacity-50">
-            Learn about Next.js in an interactive course with&nbsp;quizzes!
-          </p>
-        </a>
+    const sharelink = useMemo(() => {
+        const data = JSON.stringify({
+            estimateName,
+            ceilNumbers: isCeilNumbers,
+            tasks,
+        })
+        if (typeof window !== "undefined") {
+            return `${window?.location?.href}?code=${btoa(data)}`
+        }
+        return ""
+    }, [estimateName, isCeilNumbers, tasks])
 
-        <a
-          href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template&utm_campaign=create-next-app"
-          className="group rounded-lg border border-transparent px-5 py-4 transition-colors hover:border-gray-300 hover:bg-gray-100 hover:dark:border-neutral-700 hover:dark:bg-neutral-800/30"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <h2 className="mb-3 text-2xl font-semibold">
-            Templates{" "}
-            <span className="inline-block transition-transform group-hover:translate-x-1 motion-reduce:transform-none">
-              -&gt;
-            </span>
-          </h2>
-          <p className="m-0 max-w-[30ch] text-sm opacity-50">
-            Explore starter templates for Next.js.
-          </p>
-        </a>
+    const CopyHandler = () => {
+        navigator.clipboard.writeText(sharelink)
+    }
 
-        <a
-          href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template&utm_campaign=create-next-app"
-          className="group rounded-lg border border-transparent px-5 py-4 transition-colors hover:border-gray-300 hover:bg-gray-100 hover:dark:border-neutral-700 hover:dark:bg-neutral-800/30"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <h2 className="mb-3 text-2xl font-semibold">
-            Deploy{" "}
-            <span className="inline-block transition-transform group-hover:translate-x-1 motion-reduce:transform-none">
-              -&gt;
-            </span>
-          </h2>
-          <p className="m-0 max-w-[30ch] text-balance text-sm opacity-50">
-            Instantly deploy your Next.js site to a shareable URL with Vercel.
-          </p>
-        </a>
-      </div>
-    </main>
-  );
+    const taskForm = useForm<z.infer<typeof TaskFormSchema>>({
+        resolver: zodResolver(TaskFormSchema),
+        defaultValues: {
+            description: "",
+            estimatedA: 0,
+            estimatedB: 0,
+            estimatedC: 0,
+        },
+    })
+
+    const calculateThreePointEstimate = (data: z.infer<typeof TaskFormSchema>) => {
+        const threePointEstimate = {
+            threePointEstimated: (data.estimatedA + 4 * data.estimatedB + data.estimatedC) / 6,
+            standardDeviationEstimated: (data.estimatedA - data.estimatedC) / 6,
+        }
+
+        return threePointEstimate
+    }
+
+    const addTask = (data: z.infer<typeof TaskFormSchema>) => {
+        const threePointEstimate = calculateThreePointEstimate(data)
+
+        const task = {
+            id: uuid(),
+            ...data,
+            ...threePointEstimate,
+        }
+
+        setTasks([...tasks, task])
+    }
+
+    const deleteTask = (id: string) => {
+        const newTasks = tasks.filter(item => item.id !== id)
+        setTasks(newTasks)
+    }
+
+    const onSubmitTaskForm = (data: z.infer<typeof TaskFormSchema>) => {
+        addTask(data)
+        taskForm.reset()
+    }
+
+    const totalEstimated = useMemo(() => tasks.reduce((total, item) => total + item.threePointEstimated, 0), [tasks])
+    const totalStandardDeviation = useMemo(() => tasks.reduce((total, item) => total + item.standardDeviationEstimated, 0), [tasks])
+
+    const CeilNumber = (value: number) => {
+        if (isCeilNumbers) {
+            return Math.ceil(value)
+        } else {
+            return value
+        }
+    }
+
+    const columnsTable: ColumnDef<z.infer<typeof TaskWithThreePointSchema>[]> = [
+        {
+            accessorKey: "description",
+            header: "Atividade",
+        },
+        {
+            accessorKey: "estimatedA",
+            header: "Pessimista (h)",
+            cell: ({ row }) => {
+                return CeilNumber(Number(row.getValue("estimatedA")))
+            },
+        },
+        {
+            accessorKey: "estimatedB",
+            header: "Mais Provável (h)",
+            cell: ({ row }) => {
+                return CeilNumber(Number(row.getValue("estimatedB")))
+            },
+        },
+        {
+            accessorKey: "estimatedC",
+            header: "Otimista (h)",
+            cell: ({ row }) => {
+                return CeilNumber(Number(row.getValue("estimatedC")))
+            },
+        },
+        {
+            accessorKey: "threePointEstimated",
+            header: "Estimativa (h)",
+            cell: ({ row }) => {
+                return CeilNumber(Number(row.getValue("threePointEstimated")))
+            },
+        },
+        {
+            accessorKey: "standardDeviationEstimated",
+            header: "Desvio Padrão (h)",
+            cell: ({ row }) => {
+                return CeilNumber(Number(row.getValue("standardDeviationEstimated")))
+            },
+        },
+        {
+            id: "actions",
+            cell: ({ row }) => {
+                const item = row.original
+
+                return (
+                    <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                            <Button variant="ghost" className="h-8 w-8 p-0">
+                                <MoreHorizontal className="h-4 w-4" />
+                            </Button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent align="end">
+                            <DropdownMenuLabel>Ações</DropdownMenuLabel>
+                            <DropdownMenuItem
+                                onClick={() => deleteTask(item.id)}
+                            >
+                                Remover
+                            </DropdownMenuItem>
+                        </DropdownMenuContent>
+                    </DropdownMenu>
+                )
+            },
+        },
+    ]
+
+    return (
+        <main className="flex min-h-screen flex-col items-center p-24 font-mono">
+            <div className="z-10 w-full max-w-5xl items-center justify-center text-lg lg:flex">
+                Calculadora de Estimativas
+            </div>
+            <div className="z-10 w-full max-w-5xl items-center justify-center text-sm lg:flex">
+                by Alex Ribeiro
+            </div>
+
+            <div className="justify-center mt-24">
+                <div className="grid w-full max-w-sm items-center gap-1.5">
+                    <Label htmlFor="name">Nome da Estimativa</Label>
+                    <Input type="text" id="name" placeholder="Título da estimativa" value={estimateName} onChange={e => setEstimateName(e.target.value)} />
+                    <Dialog>
+                        <DialogTrigger asChild>
+                            <Button variant="outline" size="icon" className="align"><Share2 className="h-4 w-4" /></Button>
+                        </DialogTrigger>
+                        <DialogContent className="sm:max-w-md">
+                            <DialogHeader>
+                                <DialogTitle>Compartilhar Link</DialogTitle>
+                                <DialogDescription>
+                                    Qualquer um com esse link poderá visualizar essa estimativa e, caso editar, será gerado um novo link.
+                                </DialogDescription>
+                            </DialogHeader>
+                            <div className="flex items-center space-x-2">
+                                <div className="grid flex-1 gap-2">
+                                    <Label htmlFor="link" className="sr-only">
+                                        Link
+                                    </Label>
+                                    <Input
+                                        id="link"
+                                        defaultValue={sharelink}
+                                        readOnly
+                                    />
+                                </div>
+                                <Button type="button" size="sm" className="px-3" onClick={CopyHandler}>
+                                    <span className="sr-only">Copiar</span>
+                                    <Copy className="h-4 w-4" />
+                                </Button>
+                            </div>
+                        </DialogContent>
+                    </Dialog>
+                </div>
+                <div className="flex items-center space-x-2 mt-4">
+                    <Checkbox id="ceil" checked={isCeilNumbers} onCheckedChange={checked => setIsCeilNumbers(checked ? true : false)} />
+                    <label
+                        htmlFor="terms"
+                        className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
+                    >
+                        Arredondar valores para o inteiro mais próximo?
+                    </label>
+                </div>
+            </div>
+
+            <Form{...taskForm}>
+                <form onSubmit={taskForm.handleSubmit(onSubmitTaskForm)} className="justify-center items-center w-full max-w-lg mt-10">
+                    <FormField
+                        control={taskForm.control}
+                        name="description"
+                        render={({ field }) => (
+                            <FormItem className="mb-4">
+                                <FormLabel>Atividade</FormLabel>
+                                <FormControl>
+                                    <Input placeholder="Nome da atividade" {...field} />
+                                </FormControl>
+                                <FormMessage />
+                            </FormItem>
+                        )}
+                    />
+                    <FormField
+                        control={taskForm.control}
+                        name="estimatedA"
+                        render={({ field }) => (
+                            <FormItem>
+                                <FormLabel>Estimativa Pessimista (h)</FormLabel>
+                                <FormControl>
+                                    <Input placeholder="Pessimista (h)" {...field} onChange={(e) => field.onChange(Number(e.target.value))} type="number" />
+                                </FormControl>
+                                <FormMessage />
+                            </FormItem>
+                        )}
+                    />
+                    <FormField
+                        control={taskForm.control}
+                        name="estimatedB"
+                        render={({ field }) => (
+                            <FormItem>
+                                <FormLabel>Estimativa Mais Provável (h)</FormLabel>
+                                <FormControl>
+                                    <Input placeholder="Mais Provável (h)" {...field} onChange={(e) => field.onChange(Number(e.target.value))} type="number" />
+                                </FormControl>
+                                <FormMessage />
+                            </FormItem>
+                        )}
+                    />
+                    <FormField
+                        control={taskForm.control}
+                        name="estimatedC"
+                        render={({ field }) => (
+                            <FormItem>
+                                <FormLabel>Estimativa Otimista (h)</FormLabel>
+                                <FormControl>
+                                    <Input placeholder="Otimista (h)" {...field} onChange={(e) => field.onChange(Number(e.target.value))} type="number" />
+                                </FormControl>
+                                <FormMessage />
+                            </FormItem>
+                        )}
+                    />
+                    <Button className="mt-4" type="submit">Adicionar Atividade</Button>
+                </form>
+            </Form>
+
+            <div className="justify-center text-right mt-10">
+                <p>Total estimado: {CeilNumber(totalEstimated)}h +/- {CeilNumber(totalStandardDeviation)}h</p>
+            </div>
+
+            <div className="container mx-auto py-10">
+                <DataTable columns={columnsTable} data={tasks} />
+            </div>
+        </main>
+    );
 }
