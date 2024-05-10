@@ -7,10 +7,11 @@ import { v4 as uuid } from "uuid"
 import {
     ColumnDef
 } from "@tanstack/react-table"
-import { Copy, MoreHorizontal, Share2 } from "lucide-react"
+import { Copy, Download, MoreHorizontal, Share2, Sheet } from "lucide-react"
 
 import { useEffect, useMemo, useState } from "react"
 import { usePathname, useSearchParams } from 'next/navigation'
+import { CSVLink } from "react-csv"
 
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -284,15 +285,6 @@ export default function Home() {
                         </DialogContent>
                     </Dialog>
                 </div>
-                <div className="flex items-center space-x-2 mt-4">
-                    <Checkbox id="ceil" checked={isCeilNumbers} onCheckedChange={checked => setIsCeilNumbers(checked ? true : false)} />
-                    <label
-                        htmlFor="terms"
-                        className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
-                    >
-                        Arredondar valores para o inteiro mais próximo?
-                    </label>
-                </div>
             </div>
 
             <Form{...taskForm}>
@@ -353,11 +345,54 @@ export default function Home() {
                 </form>
             </Form>
 
-            <div className="justify-center text-right mt-10">
+            <div className="flex items-center space-x-2 mt-10">
+                <Checkbox id="ceil" checked={isCeilNumbers} onCheckedChange={checked => setIsCeilNumbers(checked ? true : false)} />
+                <label
+                    htmlFor="terms"
+                    className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
+                >
+                    Arredondar valores para o inteiro mais próximo?
+                </label>
+            </div>
+
+            <div className="justify-center text-right mt-4">
                 <p>Total estimado: {CeilNumber(totalEstimated)}h +/- {CeilNumber(totalStandardDeviation)}h</p>
             </div>
 
-            <div className="container mx-auto py-10">
+            <CSVLink data={tasks} filename={`${estimateName}_Estimates.csv`} className="flex items-center space-x-2 pt-5" headers={[
+                {
+                    label: 'id',
+                    key: 'id'
+                },
+                {
+                    label: 'Atividade',
+                    key: 'description'
+                },
+                {
+                    label: 'Estimativa Pessimista (h)',
+                    key: 'estimatedA'
+                },
+                {
+                    label: 'Estimativa Mais Provável (h)',
+                    key: 'estimatedB'
+                },
+                {
+                    label: 'Estimativa Otimista (h)',
+                    key: 'estimatedC'
+                },
+                {
+                    label: 'Estimativa (h)',
+                    key: 'threePointEstimated'
+                },
+                {
+                    label: 'Desvio Padrão (h)',
+                    key: 'standardDeviationEstimated'
+                }
+            ]}>
+                <Button variant="outline" size="default" className="align"><Download className="h-4 w-4 mr-2" /> Download CSV</Button>
+            </CSVLink>
+
+            <div className="container mx-auto py-5">
                 <DataTable columns={columnsTable} data={tasks} />
             </div>
         </main>
